@@ -224,6 +224,11 @@ def generate_system_message(state: AgentState) -> SystemMessage:
 
 Maintain premium standard practices: write robust, clean, and tested code.
 """
+    # Append high-density summarized history if it exists
+    summarized_history = state.get("summarized_history", "")
+    if summarized_history:
+        prompt += f"\n## 已压缩的早期对话摘要记录 (对话历史垃圾回收结果):\n{summarized_history}\n"
+
     return SystemMessage(content=prompt)
 
 
@@ -232,18 +237,33 @@ Maintain premium standard practices: write robust, clean, and tested code.
 def agent_node(state: AgentState) -> dict:
     """
     Agent node: gets the latest state, binds tools, formats system prompt, and calls model.
+    Triggers dialogue compaction dynamically when the token size exceeds threshold.
     """
+    from claude_code.compact.auto_compact import should_compact
+    from claude_code.compact.summarizer import compact_history
+
+    messages = state.get("messages", [])
+    summarized_history = state.get("summarized_history", "")
+
+    # Perform automated dialogue compaction if history is too long
+    if should_compact(messages):
+        messages, summarized_history = compact_history(messages, summarized_history)
+
     llm = get_llm()
     # Bind the tools
     llm_with_tools = llm.bind_tools(TOOLS)
 
-    # Format the dynamic system message
-    system_msg = generate_system_message(state)
+    # Format the dynamic system message with possibly compacted state
+    temp_state = {**state, "messages": messages, "summarized_history": summarized_history}
+    system_msg = generate_system_message(temp_state)
 
     # Call LLM
-    response = llm_with_tools.invoke([system_msg] + state["messages"])
+    response = llm_with_tools.invoke([system_msg] + messages)
     
-    return {"messages": [response]}
+    return {
+        "messages": messages + [response],
+        "summarized_history": summarized_history
+    }
 
 
 def execute_tools_node(state: AgentState) -> dict:
@@ -287,7 +307,7 @@ def execute_tools_node(state: AgentState) -> dict:
         )
 
     return {
-        "messages": tool_messages,
+        "messages": state["messages"] + tool_messages,
         "current_working_directory": new_cwd,
     }
 

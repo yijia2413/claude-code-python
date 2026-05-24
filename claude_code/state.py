@@ -12,8 +12,10 @@ def merge_messages(left: List[BaseMessage], right: List[BaseMessage]) -> List[Ba
 
 class AgentState(TypedDict):
     # Chronological history of messages in the conversation
-    messages: Annotated[List[BaseMessage], merge_messages]
+    messages: List[BaseMessage]
     # Current active directory of the execution workspace
     current_working_directory: str
     # Active TODO checklist or plan details
     plan: str
+    # High-density Markdown summary of older compacted conversation history
+    summarized_history: str
