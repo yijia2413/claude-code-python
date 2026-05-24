@@ -157,17 +157,13 @@ def main():
             if not user_input:
                 continue
 
-            if user_input == "/exit":
-                console.print("[info]Goodbye![/info]")
-                break
-
-            if user_input == "/clear":
-                state = {
-                    "messages": [],
-                    "current_working_directory": os.getcwd(),
-                    "plan": "",
-                }
-                console.print("[info]Session reset.[/info]")
+            if user_input.startswith("/"):
+                from claude_code.commands.manager import handle_slash_command
+                handled, state = handle_slash_command(user_input, state)
+                if not handled:
+                    # User requested exit
+                    console.print("[info]Goodbye![/info]")
+                    break
                 continue
 
             # Run agent processing

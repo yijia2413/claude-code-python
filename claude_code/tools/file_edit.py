@@ -11,10 +11,14 @@ def edit_file(
     2. The old_string is found in the file.
     3. If there are multiple occurrences of old_string, replace_all must be True.
     """
+    from claude_code.tools.file_undo import push_file_state
     file_path = os.path.abspath(file_path)
 
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
+
+    # Push state to undo stack before any edits occur
+    push_file_state(file_path)
 
     with open(file_path, "r", encoding="utf-8", errors="replace") as f:
         content = f.read()
