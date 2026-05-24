@@ -1,60 +1,60 @@
-# Antigravity CLI (Claude Code Python + LangGraph Re-implementation)
+# Antigravity CLI (Claude Code Python + LangGraph 重构版)
 
-A premium developer AI companion reconstructed in Python and LangGraph, replicating the core agentic capabilities of Claude Code.
+这是一个利用 **Python 和 LangGraph** 重新构建的顶级开发大模型助手 CLI，深度还原了 Claude Code 的核心交互与 Agent 推理能力。
 
-## Architecture
+## 架构
 
-Built entirely as a **LangGraph State Machine** wrapped with an interactive command-line **REPL interface**:
-- Dynamic workspace context generation (OS, local time, active Git branch, CWD, and Git branch details).
-- Robust local tools executing safely against the active folder.
-- Real-time command directory tracking using custom stdout boundary tokens.
-
----
-
-## Workspace Tools
-
-- **`BashTool` (`execute_bash_tool`)**: Runs any workspace commands and dynamically maps current working directory shifts (`cd`).
-- **`FileReadTool` (`read_file_tool`)**: Reads file contents with line numbers and line offset support. Integrates fully with Jupyter Notebooks (`.ipynb`).
-- **`FileWriteTool` (`write_file_tool`)**: Creates absolute code files or does total rewrites.
-- **`FileEditTool` (`edit_file_tool`)**: Safely performs exact target string replacements (`old_string` -> `new_string`) with target uniqueness validation.
-- **`GrepTool` / `GlobTool`**: High-performance recursive codebase searches and pattern matching.
-- **`AskUserQuestionTool`**: Directly queries the human during multi-turn executions for interactive feedback.
+整个助手是作为一个 **LangGraph 状态机** 运转的，外层包裹了极具交互感的终端 **REPL 环流**：
+- **动态工作空间上下文**: 每次发起大模型决策时，自动抓取最新的操作系统、本地时间、活动 Git 分支及修改状态、当前所处的绝对路径。
+- **本地工具安全注入**: 围绕本地工作空间提供一系列的高可靠本地执行和代码操作工具。
+- **命令行状态保持**: 借助自定义 shell 输出边界标记，可在连续的对话 turn 中完美跟踪终端 `cd` 目录切换的副作用。
 
 ---
 
-## Setup & Dependency Installation
+## 核心工具链
 
-1. Create a Python virtual environment and upgrade pip:
+- **`BashTool` (`execute_bash_tool`)**: 在本地系统上执行任何 Shell 命令行。如果检测到 `cd` 命令，将自动更新对话上下文中的工作目录状态。
+- **`FileReadTool` (`read_file_tool`)**: 读取文件内容，输出带行号（cat -n 风格），支持起止行号截断读取。内置对 Jupyter Notebooks (`.ipynb`) 的优雅结构化解析渲染。
+- **`FileWriteTool` (`write_file_tool`)**: 创建新文件或对现有文件进行完全覆写。
+- **`FileEditTool` (`edit_file_tool`)**: 执行精确的 target 字符串局部替换（`old_string` -> `new_string`）。强制做匹配唯一性校验，杜绝破坏性编辑。
+- **`GrepTool` / `GlobTool`**: 高性能的递归代码全局搜索与文件名通配符匹配。
+- **`AskUserQuestionTool`**: 在 Agent 运行中途允许模型暂停执行并直接提问人类，收集关键答复。
+
+---
+
+## 安装与部署
+
+1. 创建 Python 虚拟环境并升级 pip：
    ```bash
    python3 -m venv .venv
    .venv/bin/pip install --upgrade pip
    ```
 
-2. Install the project in editable mode including development dependencies:
+2. 以可编辑模式安装项目（包含开发和测试依赖）：
    ```bash
    .venv/bin/pip install -e ".[dev]"
    ```
 
-3. Run the automated test suite to verify tool correctness:
+3. 运行自动化单元测试套件：
    ```bash
    .venv/bin/pytest tests/
    ```
 
 ---
 
-## How to Configure and Run
+## 如何配置与运行
 
-Simply configure the base URL, API key, and model name to use your reconstructed Python Claude Code:
+您仅需要配置 `CLAUDE_BASE_URL`、`CLAUDE_API_KEY` 和 `CLAUDE_MODEL_NAME` 环境变量，即可使用这个重构后的 Claude Code 助手：
 
 ```bash
-# Configure standard credentials
+# 1. 配置认证凭证与后端模型信息（这里以 OpenAI 或代理 Gateway 为例，亦可配置 Anthropic 官方密钥）
 export CLAUDE_API_KEY="your-api-key"
-export CLAUDE_BASE_URL="https://api.anthropic.com/v1"  # Or standard OpenAI custom gateway
-export CLAUDE_MODEL_NAME="claude-3-5-sonnet-20241022"   # Or custom OpenAI models like gpt-4o
+export CLAUDE_BASE_URL="https://api.openai.com/v1"  # 或者是您本地的大模型代理网关
+export CLAUDE_MODEL_NAME="gpt-4o"  # 或者是 claude-3-5-sonnet
 
-# Run interactive REPL session
+# 2. 启动交互式 REPL 会话终端
 .venv/bin/claude-py
 
-# Or run in one-shot print mode
-.venv/bin/claude-py "Create a simple test.py file and run it" -p
+# 3. 或者是通过 -p 参数进行非交互式的单次命令行输出
+.venv/bin/claude-py "修复项目下所有的 py 文件的格式和引入导入顺序" -p
 ```
