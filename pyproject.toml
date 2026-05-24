@@ -31,6 +31,7 @@ dev = [
 
 [project.scripts]
 claude-py = "claude_code.cli:main"
+claude-review = "claude_code.review:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
