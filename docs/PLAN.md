@@ -1,57 +1,54 @@
-# 用 Python + LangGraph 重构 Claude Code
+# Claude Code Python 完全版重构实施方案
 
-本文档概述了在此代码库中，使用 **Python 3.10+ 和 LangGraph** 重新实现 Claude Code 核心功能的架构目标和系统设计。
+本文档概述了将原版 TypeScript/Node.js 源码（claude_code_source）中**所有企业级大子系统、底层垃圾回收、快捷命令集以及扩展协议**百分之百移植并重新实现至 **Python + LangGraph 版本**的终极规划。
 
-## 架构与系统设计
+---
 
-我们将 Agent 构建为一个 LangGraph 状态机，结合交互式 CLI REPL。
+## 1. 五大子系统架构蓝图
 
-### 1. 状态定义
-LangGraph 工作流维护一个 `AgentState` 结构：
-- `messages`: 标准的消息日志列表（User, AI, Tool）。
-- `current_working_directory`: 当前活动的执行工作目录（绝对路径）。
-- `plan`: 活动的任务计划或 TODO 文本。
-- `system_prompt`: 根据当前活动 Git 分支、操作系统、目录文件以及实时时间动态组装生成。
+我们将全面构建以下五大企业级子系统，做到完美对齐，毫无遗漏：
 
-### 2. 内置 Agent 工具链
-我们在 Python 中实现了一系列高可靠性的本地工具：
-- **`BashTool` (`execute_bash_tool`)**: 在本地系统上执行 shell 命令行。如果检测到 `cd` 命令，将自动提取并更新状态中的 `current_working_directory`。
-- **`FileReadTool` (`read_file_tool`)**: 读取文件内容。支持行号输出（cat -n 风格）以及按需截断的起止行偏移量。内置对 `.ipynb` (Jupyter Notebook) 的优雅结构化解析渲染。
-- **`FileWriteTool` (`write_file_tool`)**: 创建新文件或对现有文件进行完全覆写。
-- **`FileEditTool` (`edit_file_tool`)**: 执行精确的 target 字符串局部替换（`old_string` -> `new_string`）。强制做匹配唯一性校验，杜绝破坏性编辑。
-- **`GrepTool` / `GlobTool`**: 高性能的递归代码全局搜索与文件名通配符匹配。
-- **`AskUserQuestionTool`**: 在 Agent 运行中途允许模型暂停执行并直接提问人类。
+### 1.1 子系统 A：对话自动压缩与垃圾回收 (`claude_code/compact/`)
+- 对标原版 `services/compact/`，实现对超长对话流的自动剪枝。
+- **Autocompact**: 当 Token 数达到阀值上限时，自动派生一个轻量级 LLM Persona 对老旧的对话历史进行高密度的 Markdown 摘要归纳（Summary Attachment），附加到 SystemPrompt 中，随后剔除 state 中这部分消息，大幅释放 Token 空间。
+- **Microcompact / Snip**: 实现精细化的 Tail-message 消息局部剔除与缓存合并。
 
-## 提议的代码目录结构
+### 1.2 子系统 B：86个全量快捷指令与防灾撤销栈 (`claude_code/commands/`)
+- 对标原版 `commands/`，实现全面的交互式高级指令集：
+- **防灾撤销栈 (`/undo`)**: 每次在文件修改写入前，自动将原文件及位置压入内存撤销栈。在终端键入 `/undo` 即可立即退栈并一键回滚还原。
+- **环境诊断 (`/doctor`)**: 深入诊断当前 Python、pip、git 及测试环境的连通与配置状态。
+- **排障专家 (`/bug`)**: 一键分析当前测试报错日志的 traceback 堆栈信息。
 
-- `claude_code/`
-  - `__init__.py`
-  - `cli.py`: 命令行参数解析和交互式终端会话控制。
-  - `agent.py`: LangGraph 状态图编译和动态系统提示词渲染。
-  - `state.py`: 核心状态定义。
-  - `tools/`:
-    - `__init__.py`
-    - `bash.py`
-    - `file_read.py`
-    - `file_write.py`
-    - `file_edit.py`
-    - `search.py`
-    - `ask_user.py`
-  - `utils/`: 核心通用实用工具。
-- `docs/`
-  - `PLAN.md`: 主体方案架构设计。
-  - `TODO.md`: 活动的任务检查单。
-  - `UPDATE.md`: 进行中的开发日志。
-- `tests/`
-  - `test_tools.py`
-  - `test_agent.py`
-- `pyproject.toml`
-- `requirements.txt`
+### 1.3 子系统 C：动态 MCP 客户端引擎 (`claude_code/mcp/`)
+- 对标原版 `services/mcp/`，实现行业标准 MCP (Model Context Protocol) 动态加载。
+- 自动解析 `mcp.json` 并使用异步管道（asyncio/stdio）与本地或远程 MCP 工具服务进行握手。
+- 将拉取的 MCP tools 定义动态转换为 LangChain `@tool` 对象绑定给大模型。
 
-## 执行开发步骤
-1. 定义项目的基本打包依赖配置 (`pyproject.toml`, `requirements.txt`)。
-2. 针对所有的工具编写对应的 pytest 单元测试套件。
-3. 在 `claude_code/tools/` 编写健壮、无 bug 的工具函数。
-4. 编译 LangGraph 的 Agent 状态环流控制图。
-5. 编写 interactive CLI 交互界面。
-6. 进行全链路验证和迭代。
+### 1.4 子系统 D：后台任务与守护进程管理 (`claude_code/daemon/`)
+- 对标原版 `daemon/` 和 `tasks/` 目录。
+- **后台命令 (`BackgroundShellTask`)**: 异步并发执行耗时命令，将日志输出无缝重定向至本地临时日志文件中。
+- 提供控制台指令：`/ps` 查看进程，`/logs <id>` 查看输出，`/kill <id>` 杀死挂起任务。
+
+### 1.5 子系统 E：keyring 平台安全密钥管理器 (`claude_code/keyring/`)
+- 使用 Python 的标准凭证存储库 `keyring`。
+- 直接读取并对接 macOS 的 Keychain Access、Windows 的凭证保险箱以及 Linux 密钥环，安全地进行认证密钥的读取与无明文加密存储。
+
+---
+
+## 2. 项目推进计划与甘特图
+
+```mermaid
+gantt
+    title Claude Code 完全重构开发推进表
+    dateFormat  YYYY-MM-DD
+    section A: 自动压缩
+    对话压缩与垃圾回收系统          :active, a1, 2026-05-25, 3d
+    section B: 快捷指令
+    86个快捷指令与防灾撤销栈        :a2, after a1, 4d
+    section C: MCP引擎
+    动态 MCP 客户端协议接入         :a3, after a2, 4d
+    section D: 后台监控
+    守护进程与 BackgroundTask       :a4, after a3, 4d
+    section E: 密钥管理
+    keyring 平台Keychain凭证管理    :a5, after a4, 2d
+```

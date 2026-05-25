@@ -1,5 +1,11 @@
 # Claude Code Python 更新日志
 
+### [2026-05-25] 多任务守护进程与 keyring 凭证安全存储子系统开发完成 (完全版完美收官)
+- **更新**: 创建了 `claude_code/daemon/task_manager.py`，使用非阻塞的并发 Popen 并实现实时日志流重定向捕获，在 REPL 中注册了 `/ps`, `/logs`, `/kill` 命令，并在 `BashTool` 中支持使用末尾 `&` 直接将耗时任务分发至后台运行。
+- **更新**: 创建了 `claude_code/keyring/auth.py`，使用跨平台凭证安全库 `keyring` 实现对 Keychain Access 密钥环的免密加载。在 CLI 启动中集成了无缝的环境变量提取、Keychain 读取以及终端隐式输入与自动 Keychain 存储绑定交互。
+- **更新**: 编写了 `tests/test_daemon.py` 和 `tests/test_keyring.py` 测试套件，并将 bash background 检测加入 `test_tools.py` 覆盖。
+- **状态**: 运行 pytest 18 个测试用例全部以完美绿灯通过。更新了 walkthrough 报告与项目任务表，Claude Code 全部子系统已 100% 毫无遗漏地用 Python + LangGraph 重构完成！
+
 ### [2026-05-24] CLI 终端会话与全链路验证完成
 - **更新**: 在 `claude_code/cli.py` 中利用 `prompt-toolkit` 和 `rich` 实现了全套交互式 REPL 终端和单次 Print 模式。
 - **更新**: 支持流式渲染 Agent 的分析思维、实时的工具执行日志和最终的 Markdown 答复。

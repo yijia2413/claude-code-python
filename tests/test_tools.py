@@ -31,6 +31,18 @@ def test_bash_tool():
         assert parent_dir in os.path.realpath(res["stdout"].strip())
         assert os.path.realpath(res["new_cwd"]) == os.path.realpath(parent_dir)
 
+        # Test background process shortcut via '&'
+        res = execute_bash("sleep 5 &", tmpdir_real)
+        assert res["exit_code"] == 0
+        assert "已在后台成功启动" in res["stdout"]
+        # Make sure task manager created the task
+        from claude_code.daemon.task_manager import task_manager
+        tasks = task_manager.list_tasks()
+        assert len(tasks) > 0
+        # Kill the task to cleanup
+        task_id = tasks[-1]["id"]
+        task_manager.kill_task(task_id)
+
 
 def test_file_read_tool():
     with tempfile.NamedTemporaryFile(mode="w+", delete=False) as f:
