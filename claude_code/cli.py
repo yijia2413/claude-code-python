@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+import asyncio
 from typing import List
 
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
@@ -28,7 +29,7 @@ console = Console(theme=custom_theme)
 
 def print_banner(cwd: str):
     banner_text = f"""[bold blue]Antigravity CLI[/bold blue] [dim]v0.1.0[/dim]
-[dim]Re-implementing Claude Code with Python + LangGraph[/dim]
+[dim]Re-implementing Claude Code with Python + LangGraph (Async Engine)[/dim]
 
 [bold yellow]CWD:[/bold yellow] [green]{cwd}[/green]
 [dim]Commands: [bold]/clear[/bold] to reset, [bold]/exit[/bold] or [bold]Ctrl+C[/bold] to quit.[/dim]"""
@@ -42,16 +43,16 @@ def format_thought_block(content: str) -> str:
     return f"[thought]Thinking...[/thought]\n{content}"
 
 
-def run_agent_loop(graph, state: dict, user_input: str) -> dict:
+async def run_agent_loop(graph, state: dict, user_input: str) -> dict:
     """
-    Streams the LangGraph steps to show tools executing and agent thinking.
+    Streams the LangGraph steps to show tools executing and agent thinking asynchronously.
     """
     state["messages"].append(HumanMessage(content=user_input))
 
     console.print("\n[bold agent]Antigravity[/bold agent] is analyzing...")
 
-    # Run the compiled graph stream
-    for event in graph.stream(state, stream_mode="updates"):
+    # Run the compiled async graph stream
+    async for event in graph.astream(state, stream_mode="updates"):
         for node_name, node_update in event.items():
             if node_name == "agent":
                 # Agent responded
@@ -83,11 +84,17 @@ def run_agent_loop(graph, state: dict, user_input: str) -> dict:
                                 ).strip()
 
                 console.print(f"[bold green]✓ Tools execution completed.[/bold green]")
+                
+            elif node_name == "compact":
+                # Compact happened
+                state["messages"] = node_update["messages"]
+                state["summarized_history"] = node_update.get("summarized_history", "")
+                console.print("[info]Context window compacted successfully.[/info]")
 
     return state
 
 
-def main():
+async def main_async():
     parser = argparse.ArgumentParser(description="Antigravity developer companion CLI.")
     parser.add_argument(
         "prompt", nargs="?", default=None, help="The initial prompt to execute."
@@ -112,8 +119,8 @@ def main():
 
     # If CLI is running in --bare mode, skip Keychain checks and input prompts
     if not args.bare:
-        from claude_code.keyring.auth import get_api_key, set_api_key, get_base_url, get_model_name, is_keyring_available
-
+        from claude_code.keyring.auth import get_api_key, set_api_key, get_base_url, get_model_name
+        
         # 1. Load missing variables from secure storage
         if not api_key:
             api_key = get_api_key()
@@ -176,6 +183,9 @@ def main():
         "messages": [],
         "current_working_directory": current_cwd,
         "plan": "",
+        "agent_id": "main",
+        "permission_mode": "default",
+        "summarized_history": ""
     }
 
     # Handle Print / Non-interactive Mode
@@ -189,7 +199,7 @@ def main():
             console.print("[danger]Error: No prompt provided for print mode.[/danger]")
             sys.exit(1)
 
-        run_agent_loop(graph, state, prompt)
+        await run_agent_loop(graph, state, prompt)
         sys.exit(0)
 
     # Interactive Mode (Default)
@@ -203,7 +213,8 @@ def main():
         try:
             cwd = state.get("current_working_directory", os.getcwd())
             prompt_str = f"claude-py:{os.path.basename(cwd)} $ "
-            user_input = session.prompt(prompt_str).strip()
+            user_input = await session.prompt_async(prompt_str)
+            user_input = user_input.strip()
 
             if not user_input:
                 continue
@@ -218,12 +229,14 @@ def main():
                 continue
 
             # Run agent processing
-            state = run_agent_loop(graph, state, user_input)
+            state = await run_agent_loop(graph, state, user_input)
 
         except (KeyboardInterrupt, EOFError):
             console.print("\n[info]Exiting session. Goodbye![/info]")
             break
 
+def main():
+    asyncio.run(main_async())
 
 if __name__ == "__main__":
     main()

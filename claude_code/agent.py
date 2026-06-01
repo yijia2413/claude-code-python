@@ -2,9 +2,10 @@ import datetime
 import os
 import platform
 import subprocess
+import asyncio
 from typing import Literal
 
-from langchain_core.messages import SystemMessage, AIMessage
+from langchain_core.messages import SystemMessage, AIMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
@@ -123,6 +124,8 @@ TOOLS = [
     ask_user_tool,
 ]
 TOOLS_BY_NAME = {t.name: t for t in TOOLS}
+# Mark safe tools for concurrent execution
+CONCURRENCY_SAFE_TOOLS = {"read_file_tool", "grep_search_tool", "glob_files_tool"}
 
 
 def get_llm():
@@ -133,7 +136,6 @@ def get_llm():
     api_key = os.environ.get("CLAUDE_API_KEY")
     model_name = os.environ.get("CLAUDE_MODEL_NAME", "claude-3-5-sonnet")
 
-    # If base url is provided, use OpenAI compatible gateway
     if base_url:
         return ChatOpenAI(
             base_url=base_url,
@@ -142,7 +144,6 @@ def get_llm():
             temperature=0,
         )
 
-    # If model is claude, use LangChain Anthropic model
     if model_name.startswith("claude") or (api_key and api_key.startswith("sk-ant-")):
         return ChatAnthropic(
             model=model_name,
@@ -150,7 +151,6 @@ def get_llm():
             temperature=0,
         )
 
-    # Fallback to standard ChatOpenAI
     return ChatOpenAI(
         model=model_name,
         api_key=api_key or "no-key",
@@ -163,7 +163,6 @@ def compile_git_info(cwd: str) -> str:
     Gathers active git details of the workspace.
     """
     try:
-        # Check active branch
         branch = subprocess.check_output(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
             cwd=cwd,
@@ -171,7 +170,6 @@ def compile_git_info(cwd: str) -> str:
             stderr=subprocess.DEVNULL,
         ).strip()
         
-        # Check git status summary
         status = subprocess.check_output(
             ["git", "status", "--short"],
             cwd=cwd,
@@ -224,7 +222,6 @@ def generate_system_message(state: AgentState) -> SystemMessage:
 
 Maintain premium standard practices: write robust, clean, and tested code.
 """
-    # Append high-density summarized history if it exists
     summarized_history = state.get("summarized_history", "")
     if summarized_history:
         prompt += f"\n## 已压缩的早期对话摘要记录 (对话历史垃圾回收结果):\n{summarized_history}\n"
@@ -234,81 +231,105 @@ Maintain premium standard practices: write robust, clean, and tested code.
 
 # LangGraph workflow definition
 
-def agent_node(state: AgentState) -> dict:
+async def agent_node(state: AgentState) -> dict:
     """
-    Agent node: gets the latest state, binds tools, formats system prompt, and calls model.
-    Triggers dialogue compaction dynamically when the token size exceeds threshold.
+    Agent node: gets the latest state, binds tools, formats system prompt, and calls model asynchronously.
     """
-    from claude_code.compact.auto_compact import should_compact
-    from claude_code.compact.summarizer import compact_history
-
     messages = state.get("messages", [])
     summarized_history = state.get("summarized_history", "")
 
-    # Perform automated dialogue compaction if history is too long
-    if should_compact(messages):
-        messages, summarized_history = compact_history(messages, summarized_history)
-
     llm = get_llm()
-    # Bind the tools
     llm_with_tools = llm.bind_tools(TOOLS)
 
-    # Format the dynamic system message with possibly compacted state
-    temp_state = {**state, "messages": messages, "summarized_history": summarized_history}
-    system_msg = generate_system_message(temp_state)
+    system_msg = generate_system_message(state)
 
-    # Call LLM
-    response = llm_with_tools.invoke([system_msg] + messages)
+    # Use ainvoke for async streaming support
+    response = await llm_with_tools.ainvoke([system_msg] + messages)
     
     return {
-        "messages": messages + [response],
-        "summarized_history": summarized_history
+        "messages": [response],
     }
 
 
-def execute_tools_node(state: AgentState) -> dict:
+async def run_single_tool(tool_call, cwd, permission_mode):
+    """Executes a single tool asynchronously."""
+    tool_name = tool_call["name"]
+    tool_args = tool_call["args"]
+    tool_id = tool_call["id"]
+
+    if tool_name == "execute_bash_tool" and "cwd" not in tool_args:
+        tool_args["cwd"] = cwd
+
+    # [Hooks]: PreToolUse Permission Mock Check
+    if permission_mode != "bypass" and tool_name not in CONCURRENCY_SAFE_TOOLS:
+        # Here we would normally evaluate `alwaysAllowRules`.
+        # For now, we mock success.
+        pass
+
+    tool_fn = TOOLS_BY_NAME.get(tool_name)
+    if tool_fn:
+        try:
+            # Run the synchronous tool function in a background thread
+            res = await asyncio.to_thread(tool_fn.invoke, tool_args)
+            return str(res), tool_name, tool_id
+        except Exception as e:
+            return f"Error executing tool: {str(e)}", tool_name, tool_id
+    else:
+        return f"Tool '{tool_name}' not found.", tool_name, tool_id
+
+
+async def execute_tools_node(state: AgentState) -> dict:
     """
-    Tool execution node: executes requested tool calls in the state's AIMessage.
+    Tool execution node: executes requested tool calls asynchronously.
+    Uses asyncio.gather for concurrency safe tools (e.g., read, grep).
     """
     last_message = state["messages"][-1]
     tool_messages = []
     new_cwd = state.get("current_working_directory", os.getcwd())
+    permission_mode = state.get("permission_mode", "default")
 
-    for tool_call in last_message.tool_calls:
-        tool_name = tool_call["name"]
-        tool_args = tool_call["args"]
-        tool_id = tool_call["id"]
+    all_safe = all(tc["name"] in CONCURRENCY_SAFE_TOOLS for tc in last_message.tool_calls)
 
-        # Ensure cwd argument is passed to bash tool
-        if tool_name == "execute_bash_tool" and "cwd" not in tool_args:
-            tool_args["cwd"] = new_cwd
-
-        # Fetch and call the tool
-        tool_fn = TOOLS_BY_NAME.get(tool_name)
-        if tool_fn:
-            try:
-                res = tool_fn.invoke(input=tool_args)
-                
-                # If bash executed, check if CWD changed in stdout/results
-                if tool_name == "execute_bash_tool":
-                    # Capture CWD updates from bash tool output
-                    for line in res.split("\n"):
-                        if line.startswith("[new working directory]"):
-                            new_cwd = line.replace("[new working directory]", "").strip()
-            except Exception as e:
-                res = f"Error executing tool: {str(e)}"
-        else:
-            res = f"Tool '{tool_name}' not found."
-
-        # Return standard ToolMessage
-        from langchain_core.messages import ToolMessage
-        tool_messages.append(
-            ToolMessage(content=str(res), tool_use_id=tool_id, name=tool_name)
-        )
+    if all_safe:
+        # Concurrent execution
+        tasks = [run_single_tool(tc, new_cwd, permission_mode) for tc in last_message.tool_calls]
+        results = await asyncio.gather(*tasks)
+        for res, tool_name, tool_id in results:
+            tool_messages.append(ToolMessage(content=res, tool_use_id=tool_id, name=tool_name))
+    else:
+        # Sequential execution
+        for tc in last_message.tool_calls:
+            res, tool_name, tool_id = await run_single_tool(tc, new_cwd, permission_mode)
+            if tool_name == "execute_bash_tool":
+                for line in res.split("\n"):
+                    if line.startswith("[new working directory]"):
+                        new_cwd = line.replace("[new working directory]", "").strip()
+            tool_messages.append(ToolMessage(content=res, tool_use_id=tool_id, name=tool_name))
 
     return {
-        "messages": state["messages"] + tool_messages,
+        "messages": tool_messages,
         "current_working_directory": new_cwd,
+    }
+
+
+async def compact_node(state: AgentState) -> dict:
+    """
+    Compact node: Triggers dialogue compaction dynamically when the token size exceeds threshold.
+    """
+    from claude_code.compact.summarizer import compact_history
+    messages = state.get("messages", [])
+    summarized_history = state.get("summarized_history", "")
+
+    # compact_history will replace the messages list by setting replace_history=True flag
+    new_messages, new_summarized_history = compact_history(messages, summarized_history)
+    
+    # Mark the first message (or the list) to inform the reducer to overwrite the history
+    if new_messages:
+        new_messages[0].additional_kwargs["replace_history"] = True
+
+    return {
+        "messages": new_messages,
+        "summarized_history": new_summarized_history
     }
 
 
@@ -322,28 +343,33 @@ def should_continue(state: AgentState) -> Literal["tools", "__end__"]:
     return "__end__"
 
 
+def check_compact(state: AgentState) -> Literal["compact", "agent"]:
+    """
+    Conditional router edge: routes to compact if threshold exceeded, else to agent.
+    """
+    from claude_code.compact.auto_compact import should_compact
+    if should_compact(state.get("messages", [])):
+        return "compact"
+    return "agent"
+
+
 def create_agent_graph():
     """
-    Compiles the LangGraph agent state graph.
+    Compiles the async LangGraph agent state graph.
     """
     workflow = StateGraph(AgentState)
 
     # Register nodes
     workflow.add_node("agent", agent_node)
     workflow.add_node("tools", execute_tools_node)
+    workflow.add_node("compact", compact_node)
 
     # Set entry point
     workflow.set_entry_point("agent")
 
     # Add edges
-    workflow.add_conditional_edges(
-        "agent",
-        should_continue,
-        {
-            "tools": "tools",
-            "__end__": END,
-        },
-    )
-    workflow.add_edge("tools", "agent")
+    workflow.add_conditional_edges("agent", should_continue, {"tools": "tools", "__end__": END})
+    workflow.add_conditional_edges("tools", check_compact, {"compact": "compact", "agent": "agent"})
+    workflow.add_edge("compact", "agent")
 
     return workflow.compile()
