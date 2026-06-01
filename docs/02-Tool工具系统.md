@@ -10,7 +10,7 @@ Tool 系统是原版 Claude Code 的**工具定义、注册、权限校验与执
 
 ```mermaid
 graph TD
-    subgraph 工具定义层 (src/tools/)
+    subgraph tool_definitions ["工具定义层 (src/tools/)"]
         BT["BashTool"] --> BF["buildTool(def)"]
         FE["FileEditTool"] --> BF
         FR["FileReadTool"] --> BF
@@ -29,7 +29,7 @@ graph TD
     ToolInstance --> Registry["tools.ts 全局注册表"]
     Registry -- "getTools() / feature-gated 过滤" --> ToolsArray["Tools (readonly Tool[])"]
 
-    subgraph 运行时执行
+    subgraph runtime_execution ["运行时执行"]
         ToolsArray --> QueryEngine["QueryEngine / query.ts"]
         QueryEngine -- "model 返回 tool_use" --> FindTool["findToolByName(tools, name)"]
         FindTool --> Validate["tool.validateInput()"]

@@ -10,18 +10,18 @@ MCP（Model Context Protocol）客户端是原版 Claude Code 的**外部工具�
 
 ```mermaid
 graph TD
-    subgraph 配置加载 (config.ts)
+    subgraph config_loading ["配置加载 (config.ts)"]
         Files["~/.claude/mcp.json\n.mcp.json\n项目级配置"] --> Parse["parseMcpConfig()"]
         Parse --> Merge["mergeConfigurations() 合并多源配置"]
         Merge --> ServerDefs["MCPServerConfig[]"]
     end
 
-    subgraph 连接管理 (MCPConnectionManager.tsx)
+    subgraph connection_manager ["连接管理 (MCPConnectionManager.tsx)"]
         ServerDefs --> CM["MCPConnectionManager"]
         CM -- "per server" --> ClientInst["McpClient 实例"]
     end
 
-    subgraph 客户端核心 (client.ts 119KB)
+    subgraph client_core ["客户端核心 (client.ts 119KB)"]
         ClientInst --> Transport{"选择传输层"}
         Transport -- "stdio" --> StdioT["StdioClientTransport"]
         Transport -- "sse" --> SSET["SSEClientTransport"]
@@ -33,7 +33,7 @@ graph TD
         ListTools --> ToolConvert["转换为 MCPTool (Tool 接口)"]
     end
 
-    subgraph 认证 (auth.ts 88KB)
+    subgraph auth ["认证 (auth.ts 88KB)"]
         Init -- "需要 OAuth" --> OAuth["MCP OAuth 2.1 认证流"]
         OAuth --> Token["获取 access_token"]
         Token --> Init
@@ -124,7 +124,7 @@ flowchart TD
 
     LoopServers -- "无" --> Ready(["所有 MCP 服务就绪"])
 
-    subgraph 运行时调用
+    subgraph runtime_call ["运行时调用"]
         Ready --> ModelCall["model 调用 mcp__server__tool"]
         ModelCall --> RouteToClient["路由到对应 McpClient"]
         RouteToClient --> JSONRPCCall["发送 JSON-RPC tools/call"]

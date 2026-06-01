@@ -10,7 +10,7 @@ State 系统是原版 Claude Code 的**全局状态机与会话持久化引擎**
 
 ```mermaid
 graph TD
-    subgraph 状态核心 (src/state/)
+    subgraph state_core ["状态核心 (src/state/)"]
         Store["AppStateStore (Zustand-like)"] --> AS["AppState 状态树"]
         AS --> TPC["toolPermissionContext 权限状态"]
         AS --> FM["fastMode 状态"]
@@ -20,21 +20,21 @@ graph TD
         AS --> Hooks["hooks 钩子状态"]
     end
 
-    subgraph 配置管理 (src/utils/config.ts 63KB)
+    subgraph config_management ["配置管理 (src/utils/config.ts 63KB)"]
         GlobalCfg["~/.claude/settings.json"] --> Merge["getGlobalConfig()"]
         ProjectCfg[".claude/settings.json"] --> Merge
         EnvVars["环境变量覆盖"] --> Merge
         Merge --> Config["最终配置对象"]
     end
 
-    subgraph 会话存储 (src/utils/sessionStorage.ts 180KB)
+    subgraph session_storage ["会话存储 (src/utils/sessionStorage.ts 180KB)"]
         AS -- "recordTranscript()" --> SS["SessionStorage"]
         SS --> Disk["~/.claude/sessions/<id>/transcript.jsonl"]
         Disk -- "--resume" --> Restore["sessionRestore.ts 恢复"]
         Restore --> AS
     end
 
-    subgraph 会话历史 (src/history.ts)
+    subgraph session_history ["会话历史 (src/history.ts)"]
         Disk --> Hist["listSessionsImpl() 列出历史"]
         Hist --> Resume["resume 恢复对话"]
     end
@@ -122,7 +122,7 @@ flowchart TD
     CreateQE --> RunLoop["进入主循环"]
     CreateQE2 --> RunLoop
 
-    subgraph 运行时状态管理
+    subgraph runtime_state ["运行时状态管理"]
         RunLoop --> ToolExec["工具执行"]
         ToolExec --> UpdateState["setAppState() 更新状态"]
         UpdateState --> Record["recordTranscript(messages)"]
@@ -130,7 +130,7 @@ flowchart TD
         WriteQueue --> Disk["写入 transcript.jsonl"]
     end
 
-    subgraph onChangeAppState 副作用
+    subgraph on_change ["onChangeAppState 副作用"]
         UpdateState --> OnChange["onChangeAppState.ts"]
         OnChange --> SyncPerm["同步权限规则到文件"]
         OnChange --> UpdateUI["更新 REPL UI 状态"]
@@ -149,7 +149,7 @@ flowchart TD
 
     ReadEnv --> Merge["合并配置"]
 
-    subgraph 配置优先级 (高→低)
+    subgraph config_priority ["配置优先级 (高→低)"]
         CLI_OPT["CLI 参数"] --> ENV_OVERRIDE["环境变量"]
         ENV_OVERRIDE --> PROJECT_CFG["项目级配置"]
         PROJECT_CFG --> USER_CFG["用户级配置"]

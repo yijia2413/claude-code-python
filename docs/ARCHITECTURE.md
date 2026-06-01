@@ -11,27 +11,27 @@
 ```mermaid
 graph TD
     %% 交互展示层
-    subgraph Layer1 [1. 交互展示层 - CLI & REPL]
+    subgraph Layer1 ["1. 交互展示层 - CLI & REPL"]
         A1[cli.py Entrypoint] -->|初始化命令行参数/会话历史| A2[PromptSession prompt-toolkit]
         A2 -->|捕获用户输入 Prompt| A3[Rich Rendering UI]
     end
 
     %% 逻辑流转控制层
-    subgraph Layer2 [2. 逻辑流转控制层 - LangGraph Engine]
+    subgraph Layer2 ["2. 逻辑流转控制层 - LangGraph Engine"]
         B1[agent.py Graph Compiler] -->|流式驱动状态变更| B2[AgentState State Machine]
         B2 -->|Reducer 追加逻辑| B3[messages 列表]
         B2 -->|跟踪环境状态| B4[current_working_directory]
     end
 
     %% 模型调用与决策层
-    subgraph Layer3 [3. 模型决策层 - LLM Node]
+    subgraph Layer3 ["3. 模型决策层 - LLM Node"]
         C1[generate_system_message] -->|注入动态环境信息| C2[SystemMessage Compiler]
         C2 -->|合并会话消息| C3[get_llm Client Wrapper]
         C3 -->|API 凭证决策| C4{ChatAnthropic / ChatOpenAI}
     end
 
     %% 本地执行与工具链
-    subgraph Layer4 [4. 执行与工具链层 - Local System & Filesystem]
+    subgraph Layer4 ["4. 执行与工具链层 - Local System & Filesystem"]
         D1[TOOLS Registry] -->|execute_bash_tool| D2[Bash.py Execution Node]
         D1 -->|read_file_tool| D3[file_read.py cat -n / Jupyter]
         D1 -->|edit_file_tool| D4[file_edit.py Exact Replacement]

@@ -10,20 +10,20 @@ Permission 系统是原版 Claude Code 的**安全核心**，在每一次工具�
 
 ```mermaid
 graph TD
-    subgraph 权限来源 (配置层)
+    subgraph permission_source ["权限来源 (配置层)"]
         GC["~/.claude/settings.json\n(全局配置)"] --> Rules["ToolPermissionRulesBySource"]
         PC[".claude/settings.json\n(项目配置)"] --> Rules
         CLI["--allowedTools CLI参数"] --> Rules
         SDK["SDK permissionMode"] --> Mode["PermissionMode"]
     end
 
-    subgraph 权限规则结构
+    subgraph permission_rules ["权限规则结构"]
         Rules --> Allow["alwaysAllowRules"]
         Rules --> Deny["alwaysDenyRules"]
         Rules --> Ask["alwaysAskRules"]
     end
 
-    subgraph 权限检查链 (运行时)
+    subgraph permission_chain ["权限检查链 (运行时)"]
         ToolCall["tool_use 请求"] --> ToolValidate["tool.validateInput()"]
         ToolValidate --> ToolCheckPerm["tool.checkPermissions()"]
         ToolCheckPerm --> HooksPre["PreToolUse Hooks"]

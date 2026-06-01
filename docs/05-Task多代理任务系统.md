@@ -13,14 +13,14 @@ graph TD
     MainAgent["主 Agent (QueryEngine)"] -- "model 调用 AgentTool" --> AgentTool["AgentTool.call()"]
     MainAgent -- "model 调用 TaskCreateTool" --> TCT["TaskCreateTool.call()"]
 
-    subgraph Agent 子任务
+    subgraph agent_subtasks ["Agent 子任务"]
         AgentTool -- "fork" --> SubQE["子 QueryEngine"]
         SubQE -- "独立消息链" --> SubQuery["query() 子循环"]
         SubQuery -- "使用相同 Tools" --> ToolExec["工具执行"]
         ToolExec --> SubResult["返回摘要给父 Agent"]
     end
 
-    subgraph Task 后台任务
+    subgraph task_background ["Task 后台任务"]
         TCT --> TaskMgr["Task Manager (AppState)"]
         TaskMgr -- "创建" --> LAT["LocalAgentTask"]
         TaskMgr -- "创建" --> LST["LocalShellTask"]
@@ -28,7 +28,7 @@ graph TD
         TaskMgr -- "创建" --> DT["DreamTask"]
     end
 
-    subgraph Task 监控工具
+    subgraph task_monitoring ["Task 监控工具"]
         TLT["TaskListTool"] --> TaskMgr
         TGT["TaskGetTool"] --> TaskMgr
         TST["TaskStopTool"] --> TaskMgr
@@ -130,7 +130,7 @@ flowchart TD
     Start(["model 调用 AgentTool"]) --> ParseInput["解析 task + permitted_tools"]
     ParseInput --> CreateCtx["createSubagentContext()"]
 
-    subgraph createSubagentContext
+    subgraph createSubagentContext_box ["createSubagentContext"]
         CreateCtx --> CloneCache["克隆 readFileState"]
         CreateCtx --> IsolateState["创建隔离的 AppState 副本"]
         CreateCtx --> SetAgentId["分配唯一 agentId"]
@@ -139,7 +139,7 @@ flowchart TD
 
     CreateCtx --> ForkAgent["forkedAgent.ts: 创建子 query 循环"]
 
-    subgraph 子代理执行
+    subgraph subagent_execution ["子代理执行"]
         ForkAgent --> SubSysPrompt["构建子代理 system prompt"]
         SubSysPrompt --> SubQuery["query() 循环"]
         SubQuery --> SubTools["执行工具 (受 permitted_tools 过滤)"]

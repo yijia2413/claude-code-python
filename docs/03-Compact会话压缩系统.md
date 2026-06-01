@@ -13,7 +13,7 @@ graph TD
     QueryLoop["query.ts 主循环"] -- "每轮检查" --> ShouldAC["shouldAutoCompact(messages, model)"]
     ShouldAC -- "token > threshold" --> ACIN["autoCompactIfNeeded()"]
 
-    subgraph autoCompactIfNeeded 调度器
+    subgraph autoCompactIfNeeded_scheduler ["autoCompactIfNeeded 调度器"]
         ACIN --> CB{"断路器: consecutiveFailures >= 3?"}
         CB -- "是" --> Skip["跳过压缩"]
         CB -- "否" --> TrySM["1. trySessionMemoryCompaction()"]
@@ -23,7 +23,7 @@ graph TD
         TryLegacy -- "异常" --> IncFail["consecutiveFailures++"]
     end
 
-    subgraph compactConversation 核心 (compact.ts)
+    subgraph compactConversation_core ["compactConversation 核心 (compact.ts)"]
         TryLegacy --> BuildPrompt["buildCompactPrompt() 构建压缩提示词"]
         BuildPrompt --> CallAPI["调用 LLM 生成压缩摘要"]
         CallAPI --> ParseSummary["解析 XML 标签中的摘要内容"]
@@ -31,7 +31,7 @@ graph TD
         BuildPost --> Cleanup["runPostCompactCleanup()"]
     end
 
-    subgraph 微压缩 (microCompact.ts)
+    subgraph micro_compact ["微压缩 (microCompact.ts)"]
         QueryLoop -- "API 返回后" --> MCCheck["checkMicroCompact()"]
         MCCheck -- "单条 tool_result 过长" --> MCExec["就地截断/摘要该条结果"]
     end

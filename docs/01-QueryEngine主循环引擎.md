@@ -12,7 +12,7 @@ QueryEngine 是原版 Claude Code 的**对话生命周期管理器**和**核心�
 graph TD
     SDK["SDK / REPL 调用者"] -- "prompt (string | ContentBlockParam[])" --> QE["QueryEngine.submitMessage()"]
 
-    subgraph QueryEngine 内部
+    subgraph query_engine_internal ["QueryEngine 内部"]
         QE --> PUI["processUserInput() 解析用户输入"]
         PUI -- "slash command" --> SlashExec["本地指令执行 (不进入 query)"]
         PUI -- "普通对话" --> MsgPush["push 新消息至 mutableMessages"]
@@ -20,7 +20,7 @@ graph TD
         Transcript1 --> QueryLoop["进入 query() 异步生成器大循环"]
     end
 
-    subgraph query() 主循环 (query.ts)
+    subgraph query_main_loop ["query() 主循环 (query.ts)"]
         QueryLoop --> Claude["调用 Anthropic/OpenAI API (claude.ts)"]
         Claude -- "stream_event" --> StreamParse["解析流式事件 (message_start/delta/stop)"]
         StreamParse -- "assistant msg" --> ToolCheck{"有 tool_use block?"}
@@ -118,7 +118,7 @@ flowchart TD
 
     YieldInit --> EnterQuery["进入 query() 大循环"]
 
-    subgraph "query() 内部循环"
+    subgraph query_internal_loop ["query() 内部循环"]
         EnterQuery --> CallAPI["调用 claude API (streaming)"]
         CallAPI --> ParseStream["解析 stream_event"]
         ParseStream --> YieldAssistant["yield assistant message"]
