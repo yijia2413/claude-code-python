@@ -218,7 +218,7 @@ def generate_system_message(state: AgentState) -> SystemMessage:
     os_info = f"{platform.system()} ({platform.release()})"
     git_info = compile_git_info(cwd)
 
-    prompt = f"""You are Antigravity, a highly capable developer AI companion. You have access to tools for interacting with files and running terminal commands in the workspace.
+    prompt = f"""You are Claude, a highly capable developer AI companion. You have access to tools for interacting with files and running terminal commands in the workspace.
 
 ## Active Workspace Information
 - Current Local Time: {current_time}

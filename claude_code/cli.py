@@ -28,7 +28,7 @@ console = Console(theme=custom_theme)
 
 
 def print_banner(cwd: str):
-    banner_text = f"""[bold blue]Antigravity CLI[/bold blue] [dim]v0.1.0[/dim]
+    banner_text = f"""[bold blue]Claude Code[/bold blue] [dim]v0.1.0[/dim]
 [dim]Re-implementing Claude Code with Python + LangGraph (Async Engine)[/dim]
 
 [bold yellow]CWD:[/bold yellow] [green]{cwd}[/green]
@@ -49,7 +49,7 @@ async def run_agent_loop(graph, state: dict, user_input: str) -> dict:
     """
     state["messages"].append(HumanMessage(content=user_input))
 
-    console.print("\n[bold agent]Antigravity[/bold agent] is analyzing...")
+    console.print("\n[bold agent]Claude[/bold agent] is thinking...")
 
     # Run the compiled async graph stream
     async for event in graph.astream(state, stream_mode="updates"):
