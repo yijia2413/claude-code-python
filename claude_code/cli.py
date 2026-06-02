@@ -112,68 +112,76 @@ async def main_async():
     )
     args = parser.parse_args()
 
-    # Load credentials validation
-    api_key = os.environ.get("CLAUDE_API_KEY")
-    base_url = os.environ.get("CLAUDE_BASE_URL")
-    model_name = os.environ.get("CLAUDE_MODEL_NAME")
+    from claude_code.config import get_active_provider_config
 
-    # If CLI is running in --bare mode, skip Keychain checks and input prompts
-    if not args.bare:
-        from claude_code.keyring.auth import get_api_key, set_api_key, get_base_url, get_model_name
-        
-        # 1. Load missing variables from secure storage
-        if not api_key:
-            api_key = get_api_key()
-            if api_key:
-                os.environ["CLAUDE_API_KEY"] = api_key
-                console.print("[info]✓ 已从系统安全凭证管理器 (Keychain) 成功免密加载 CLAUDE_API_KEY。[/info]")
+    provider_cfg = get_active_provider_config()
+    
+    # If config exists, we trust it and skip env var checks
+    if provider_cfg:
+        console.print(f"[info]✓ Loaded active configuration from config.yaml (Provider: {provider_cfg.get('protocol')})[/info]")
+    else:
+        # Load credentials validation from env vars
+        api_key = os.environ.get("CLAUDE_API_KEY")
+        base_url = os.environ.get("CLAUDE_BASE_URL")
+        model_name = os.environ.get("CLAUDE_MODEL_NAME")
 
-        if not base_url:
-            base_url = get_base_url()
-            if base_url:
-                os.environ["CLAUDE_BASE_URL"] = base_url
-                console.print(f"[info]✓ 已从系统安全凭证管理器 (Keychain) 成功加载 CLAUDE_BASE_URL: {base_url}[/info]")
-
-        if not model_name:
-            model_name = get_model_name()
-            if model_name:
-                os.environ["CLAUDE_MODEL_NAME"] = model_name
-                console.print(f"[info]✓ 已从系统安全凭证管理器 (Keychain) 成功加载 CLAUDE_MODEL_NAME: {model_name}[/info]")
-
-        # 2. If still missing API Key and NOT in non-interactive mode, prompt interactive session to bind it
-        if not api_key and not args.print and not args.prompt:
-            console.print("[warning]提示: 未检测到环境变量 CLAUDE_API_KEY。[/warning]")
-            try:
-                # Prompt API KEY securely using prompt_toolkit's session
-                from prompt_toolkit import prompt as pk_prompt
-                api_key_input = pk_prompt("请输入您的 CLAUDE_API_KEY (隐式输入): ", is_password=True).strip()
-                if api_key_input:
-                    api_key = api_key_input
+        # If CLI is running in --bare mode, skip Keychain checks and input prompts
+        if not args.bare:
+            from claude_code.keyring.auth import get_api_key, set_api_key, get_base_url, get_model_name
+            
+            # 1. Load missing variables from secure storage
+            if not api_key:
+                api_key = get_api_key()
+                if api_key:
                     os.environ["CLAUDE_API_KEY"] = api_key
-                    
-                    # Ask if user wants to save in keychain
-                    save_choice = pk_prompt("是否安全存储至系统 Keychain？下一次运行将免输入。 (y/n) [y]: ").strip().lower()
-                    if save_choice in ("", "y", "yes"):
-                        if set_api_key(api_key):
-                            console.print("[info]✓ API Key 已安全存储至 Keychain。[/info]")
-                        else:
-                            console.print("[warning]⚠️ 无法将 API Key 写入 Keychain (可能是当前系统无凭证后端)。[/warning]")
-                else:
-                    console.print("[danger]Error: CLAUDE_API_KEY is not configured and cannot be empty.[/danger]")
+                    console.print("[info]✓ 已从系统安全凭证管理器 (Keychain) 成功免密加载 CLAUDE_API_KEY。[/info]")
+
+            if not base_url:
+                base_url = get_base_url()
+                if base_url:
+                    os.environ["CLAUDE_BASE_URL"] = base_url
+                    console.print(f"[info]✓ 已从系统安全凭证管理器 (Keychain) 成功加载 CLAUDE_BASE_URL: {base_url}[/info]")
+
+            if not model_name:
+                model_name = get_model_name()
+                if model_name:
+                    os.environ["CLAUDE_MODEL_NAME"] = model_name
+                    console.print(f"[info]✓ 已从系统安全凭证管理器 (Keychain) 成功加载 CLAUDE_MODEL_NAME: {model_name}[/info]")
+
+            # 2. If still missing API Key and NOT in non-interactive mode, prompt interactive session to bind it
+            if not api_key and not args.print and not args.prompt:
+                console.print("[warning]提示: 未检测到 config.yaml，且未检测到环境变量 CLAUDE_API_KEY。[/warning]")
+                try:
+                    # Prompt API KEY securely using prompt_toolkit's session
+                    from prompt_toolkit import prompt as pk_prompt
+                    api_key_input = pk_prompt("请输入您的 CLAUDE_API_KEY (隐式输入): ", is_password=True).strip()
+                    if api_key_input:
+                        api_key = api_key_input
+                        os.environ["CLAUDE_API_KEY"] = api_key
+                        
+                        # Ask if user wants to save in keychain
+                        save_choice = pk_prompt("是否安全存储至系统 Keychain？下一次运行将免输入。 (y/n) [y]: ").strip().lower()
+                        if save_choice in ("", "y", "yes"):
+                            if set_api_key(api_key):
+                                console.print("[info]✓ API Key 已安全存储至 Keychain。[/info]")
+                            else:
+                                console.print("[warning]⚠️ 无法将 API Key 写入 Keychain (可能是当前系统无凭证后端)。[/warning]")
+                    else:
+                        console.print("[danger]Error: CLAUDE_API_KEY is not configured and cannot be empty.[/danger]")
+                        sys.exit(1)
+                except KeyboardInterrupt:
+                    console.print("\n[info]操作已取消。[/info]")
                     sys.exit(1)
-            except KeyboardInterrupt:
-                console.print("\n[info]操作已取消。[/info]")
+            elif not api_key:
+                # Fallback for headless non-interactive mode
+                console.print(
+                    "[danger]Error: CLAUDE_API_KEY is not configured in non-interactive mode.[/danger]",
+                    style="bold red",
+                )
+                console.print(
+                    "Please configure your environment or create a config.yaml"
+                )
                 sys.exit(1)
-        elif not api_key:
-            # Fallback for headless non-interactive mode
-            console.print(
-                "[danger]Error: CLAUDE_API_KEY is not configured in non-interactive mode.[/danger]",
-                style="bold red",
-            )
-            console.print(
-                "Please configure your environment: export CLAUDE_API_KEY='your-key'"
-            )
-            sys.exit(1)
 
     graph = create_agent_graph()
     current_cwd = os.getcwd()

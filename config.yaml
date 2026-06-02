@@ -1,0 +1,28 @@
+# 默认提供商设置
+default_provider: "kimi"
+default_model: "moonshot-v1-auto"
+
+providers:
+  # Anthropic 官方配置 (原生 Anthropic 协议)
+  anthropic_native:
+    protocol: "anthropic"
+    api_key: ""
+    base_url: "https://api.anthropic.com" # 可修改为你的代理端点
+
+  # Kimi (Moonshot) 兼容配置 (原生支持 OpenAI 协议)
+  kimi:
+    protocol: "openai"
+    api_key: ""
+    base_url: "https://api.moonshot.cn/v1"
+
+  # DeepSeek 兼容配置 (原生支持 OpenAI 协议)
+  deepseek:
+    protocol: "openai"
+    api_key: ""
+    base_url: "https://api.deepseek.com/v1"
+
+  # OpenAI 官方配置 (原生 OpenAI 协议)
+  openai_native:
+    protocol: "openai"
+    api_key: ""
+    base_url: "https://api.openai.com/v1"

@@ -130,8 +130,28 @@ CONCURRENCY_SAFE_TOOLS = {"read_file_tool", "grep_search_tool", "glob_files_tool
 
 def get_llm():
     """
-    Configures the Chat Model based on CLAUDE_BASE_URL, CLAUDE_API_KEY, and CLAUDE_MODEL_NAME.
+    Configures the Chat Model based on config.yaml or environment variables.
     """
+    from claude_code.config import get_active_provider_config
+    
+    # 1. Try to load from config.yaml first
+    provider_cfg = get_active_provider_config()
+    if provider_cfg:
+        protocol = provider_cfg.get("protocol", "openai").lower()
+        kwargs = {
+            "model": provider_cfg.get("model", "claude-3-5-sonnet"),
+            "api_key": provider_cfg.get("api_key") or "no-key",
+            "temperature": 0,
+        }
+        if provider_cfg.get("base_url"):
+            kwargs["base_url"] = provider_cfg.get("base_url")
+
+        if protocol == "anthropic":
+            return ChatAnthropic(**kwargs)
+        else:
+            return ChatOpenAI(**kwargs)
+
+    # 2. Fallback to Environment Variables
     base_url = os.environ.get("CLAUDE_BASE_URL")
     api_key = os.environ.get("CLAUDE_API_KEY")
     model_name = os.environ.get("CLAUDE_MODEL_NAME", "claude-3-5-sonnet")
