@@ -136,26 +136,28 @@ def get_llm():
     api_key = os.environ.get("CLAUDE_API_KEY")
     model_name = os.environ.get("CLAUDE_MODEL_NAME", "claude-3-5-sonnet")
 
+    # Determine protocol based on model name, API key prefix, or a protocol hint in base_url
+    is_anthropic = model_name.startswith("claude") or (api_key and api_key.startswith("sk-ant-")) or (base_url and "anthropic" in base_url.lower())
+
+    if is_anthropic:
+        kwargs = {
+            "model": model_name,
+            "api_key": api_key or "no-key",
+            "temperature": 0,
+        }
+        if base_url:
+            kwargs["base_url"] = base_url
+        return ChatAnthropic(**kwargs)
+
+    # Fallback to standard OpenAI format
+    kwargs = {
+        "model": model_name,
+        "api_key": api_key or "no-key",
+        "temperature": 0,
+    }
     if base_url:
-        return ChatOpenAI(
-            base_url=base_url,
-            api_key=api_key or "no-key",
-            model=model_name,
-            temperature=0,
-        )
-
-    if model_name.startswith("claude") or (api_key and api_key.startswith("sk-ant-")):
-        return ChatAnthropic(
-            model=model_name,
-            api_key=api_key,
-            temperature=0,
-        )
-
-    return ChatOpenAI(
-        model=model_name,
-        api_key=api_key or "no-key",
-        temperature=0,
-    )
+        kwargs["base_url"] = base_url
+    return ChatOpenAI(**kwargs)
 
 
 def compile_git_info(cwd: str) -> str:
